@@ -19,8 +19,7 @@ type rbTree struct {
 	root *rbNode
 }
 
-func (t *rbTree) insertSuccessor(vnode, vsuccessor rbNodeValue) {
-	node := vnode.getNode()
+func (t *rbTree) insertSuccessor(node *rbNode, vsuccessor rbNodeValue) {
 	successor := &rbNode{value: vsuccessor}
 	vsuccessor.bindToNode(successor)
 

@@ -1,6 +1,7 @@
 package voronoi
 
 import "math"
+import "sort"
 
 type Voronoi struct {
 	cells []*Cell
@@ -9,6 +10,11 @@ type Voronoi struct {
 	beachline rbTree
 	circleEvents rbTree
 	firstCircleEvent *CircleEvent
+}
+
+type Diagram struct {
+	Site Vertex
+	Halfedges []Halfedges
 }
 
 func (s *Voronoi) getCell(site Vertex) *Cell {
@@ -291,7 +297,7 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 
 	// create a new beach section object for the site and add it to RB-tree
 	newArc := &Beachsection{site : site}
-	s.beachline.insertSuccessor(lArc, newArc)
+	s.beachline.insertSuccessor(lArc.node, newArc)
 
 	// cases:
 	//
@@ -320,7 +326,7 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 
 		// split the beach section into two separate beach sections
 		rArc = &Beachsection{site : lArc.site}
-		s.beachline.insertSuccessor(newArc, rArc)
+		s.beachline.insertSuccessor(newArc.node, rArc)
 
 		// since we have a new transition between two beach sections,
 		// a new edge is born
@@ -412,8 +418,10 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 
 type CircleEvent struct {
 	node *rbNode
+	site Vertex
 	arc *Beachsection
 	x float64
+	y float64
 	ycenter float64
 }
 
@@ -426,9 +434,524 @@ func (s *CircleEvent) getNode() *rbNode {
 }
 
 func (s *Voronoi) attachCircleEvent(arc *Beachsection) {
+	lArc := arc.node.previous
+	rArc := arc.node.next
+	if (lArc == nil || rArc == nil) {
+		return;  // does that ever happen?
+	}
+	lSite := lArc.value.(*Beachsection).site
+        cSite := arc.site
+        rSite := rArc.value.(*Beachsection).site
 
+	// If site of left beachsection is same as site of
+	// right beachsection, there can't be convergence
+	if (lSite==rSite) {
+		return
+	}
+
+	// Find the circumscribed circle for the three sites associated
+	// with the beachsection triplet.
+	// rhill 2011-05-26: It is more efficient to calculate in-place
+	// rather than getting the resulting circumscribed circle from an
+	// object returned by calling Voronoi.circumcircle()
+	// http://mathforum.org/library/drmath/view/55002.html
+	// Except that I bring the origin at cSite to simplify calculations.
+	// The bottom-most part of the circumcircle is our Fortune 'circle
+	// event', and its center is a vertex potentially part of the final
+	// Voronoi diagram.
+	bx := cSite.x
+        by := cSite.y
+        ax := lSite.x-bx
+        ay := lSite.y-by
+        cx := rSite.x-bx
+        cy := rSite.y-by
+
+	// If points l->c->r are clockwise, then center beach section does not
+	// collapse, hence it can't end up as a vertex (we reuse 'd' here, which
+	// sign is reverse of the orientation, hence we reverse the test.
+	// http://en.wikipedia.org/wiki/Curve_orientation#Orientation_of_a_simple_polygon
+	// rhill 2011-05-21: Nasty finite precision error which caused circumcircle() to
+	// return infinites: 1e-12 seems to fix the problem.
+	d := 2*(ax*cy-ay*cx)
+	if (d >= -2e-12) {
+		return
+	}
+
+	ha := ax*ax+ay*ay
+        hc := cx*cx+cy*cy
+        x := (cy*ha-ay*hc)/d
+        y := (ax*hc-cx*ha)/d
+        ycenter := y+by
+
+	// Important: ybottom should always be under or at sweep, so no need
+	// to waste CPU cycles by checking
+
+	// recycle circle event object if possible	
+	circleEvent := &CircleEvent{
+		arc: arc,
+		site: cSite,
+		x: x+bx,
+		y: ycenter + math.Sqrt(x*x+y*y),
+		ycenter: ycenter,
+	}
+
+	arc.circleEvent = circleEvent
+
+	// find insertion point in RB-tree: circle events are ordered from
+	// smallest to largest
+	var predecessor *rbNode = nil
+        node := s.circleEvents.root
+	for node != nil {
+		nodeValue := node.value.(*CircleEvent)
+		if (circleEvent.y < nodeValue.y || (circleEvent.y == nodeValue.y && circleEvent.x <= nodeValue.x)) {
+			if (node.left != nil) {
+				node = node.left
+			} else {
+				predecessor = node.previous;
+				break
+			}
+		} else {
+			if (node.right != nil) {
+				node = node.right
+			} else {
+				predecessor = node
+				break
+			}
+		}
+        }
+	s.circleEvents.insertSuccessor(predecessor, circleEvent)
+	if (predecessor == nil) {
+		s.firstCircleEvent = circleEvent
+        }
 }
 
 func (s *Voronoi) detachCircleEvent(arc *Beachsection) {
+	circle := arc.circleEvent
+	if (circle != nil) {
+		if (circle.node.previous == nil) {
+			if (circle.node.next != nil) {
+				s.firstCircleEvent = circle.node.next.value.(*CircleEvent)
+			} else {
+				s.firstCircleEvent = nil
+			}
+		}
+		s.circleEvents.removeNode(circle.node) // remove from RB-tree
+		arc.circleEvent = nil
+        }
+}
 
+
+// ---------------------------------------------------------------------------
+// Diagram completion methods
+
+type BBox struct {
+	xl,xr,yt,yb float64
+}
+
+// connect dangling edges (not if a cursory test tells us
+// it is not going to be visible.
+// return value:
+//   false: the dangling endpoint couldn't be connected
+//   true: the dangling endpoint could be connected
+func (s *Voronoi) connectEdge(edge *Edge, bbox BBox) bool {
+	// skip if end point already connected
+	vb := edge.vb
+	if (vb != nil) {
+		return true
+	}
+
+	// make local copy for performance purpose
+	va := edge.va
+        xl := bbox.xl
+        xr := bbox.xr
+        yt := bbox.yt
+        yb := bbox.yb
+        lSite := edge.lSite
+        rSite := edge.rSite
+        lx := lSite.x
+        ly := lSite.y
+        rx := rSite.x
+        ry := rSite.y
+        fx := (lx+rx)/2
+        fy := (ly+ry)/2
+	
+        var fm, fb float64
+
+	// get the line equation of the bisector if line is not vertical
+	if (ry != ly) {
+		fm = (lx-rx)/(ry-ly)
+		fb = fy-fm*fx
+        }
+
+	// remember, direction of line (relative to left site):
+	// upward: left.x < right.x
+	// downward: left.x > right.x
+	// horizontal: left.x == right.x
+	// upward: left.x < right.x
+	// rightward: left.y < right.y
+	// leftward: left.y > right.y
+	// vertical: left.y == right.y
+
+	// depending on the direction, find the best side of the
+	// bounding box to use to determine a reasonable start point
+
+	// special case: vertical line
+	if (math.IsInf(fm, 0)) {
+		// doesn't intersect with viewport
+		if (fx < xl || fx >= xr) {
+			return false;
+		}
+		// downward
+		if (lx > rx) {
+			if (va == nil) {
+				va = &Vertex{fx, yt}
+			} else if (va.y >= yb) {
+				return false
+			}
+			vb = &Vertex{fx, yb}
+		// upward
+		} else {
+			if (va == nil) {
+				va = &Vertex{fx, yb}
+			} else if (va.y < yt) {
+				return false
+			}
+			vb = &Vertex{fx, yt}
+		}
+	// closer to vertical than horizontal, connect start point to the
+	// top or bottom side of the bounding box
+        } else if (fm < -1 || fm > 1) {
+		// downward
+		if (lx > rx) {
+			if (va == nil) {
+				va = &Vertex{(yt-fb)/fm, yt}
+			} else if (va.y >= yb) {
+				return false
+			}
+			vb = &Vertex{(yb-fb)/fm, yb}
+		// upward
+		} else {
+			if (va == nil) {
+				va = &Vertex{(yb-fb)/fm, yb}
+			} else if (va.y < yt) {
+				return false
+			}
+			vb = &Vertex{(yt-fb)/fm, yt}
+		}
+	// closer to horizontal than vertical, connect start point to the
+	// left or right side of the bounding box
+        } else {
+		// rightward
+		if (ly < ry) {
+			if (va == nil) {
+				va = &Vertex{xl, fm*xl+fb}
+			} else if (va.x >= xr) {
+				return false
+			}
+			vb = &Vertex{xr, fm*xr+fb}
+		// leftward
+		} else {
+			if (va == nil) {
+				va = &Vertex{xr, fm*xr+fb}
+			} else if (va.x < xl) {
+				return false
+			}
+			vb = &Vertex{xl, fm*xl+fb}
+		}
+        }
+	edge.va = va
+	edge.vb = vb
+	return true
+}
+
+// line-clipping code taken from:
+//   Liang-Barsky function by Daniel White
+//   http://www.skytopia.com/project/articles/compsci/clipping.html
+// Thanks!
+// A bit modified to minimize code paths
+func (s *Voronoi) clipEdge(edge *Edge, bbox BBox) bool {
+	ax := edge.va.x
+        ay := edge.va.y
+        bx := edge.vb.x
+        by := edge.vb.y
+        t0 := float64(0)
+        t1 := float64(1)
+        dx := bx-ax
+        dy := by-ay
+	// left
+	q := ax-bbox.xl;
+	if (dx==0 && q<0) {
+		return false
+	}
+	r := -q/dx;
+	if (dx<0) {
+		if (r<t0) {
+			return false
+		} else if (r<t1) {
+			t1=r
+		}
+        } else if (dx>0) {
+		if (r>t1) {
+			return false
+		} else if (r>t0) {
+			t0=r
+		}
+        }
+	// right
+	q = bbox.xr-ax;
+	if (dx==0 && q<0) {
+		return false
+	}
+	r = q/dx;
+	if (dx<0) {
+		if (r>t1) {
+			return false
+		} else if (r>t0) {
+			t0=r
+		}
+        } else if (dx>0) {
+		if (r<t0) {
+			return false
+		} else if (r<t1) {
+			t1=r
+		}
+        }
+
+	// top
+	q = ay-bbox.yt;
+	if (dy==0 && q<0) {
+		return false
+	}
+	r = -q/dy
+	if (dy<0) {
+		if (r<t0) {
+			return false
+		} else if (r<t1) {
+			t1=r
+		}
+        } else if (dy>0) {
+		if (r>t1) {
+			return false
+		} else if (r>t0) {
+			t0=r
+		}
+        }
+	// bottom        
+	q = bbox.yb-ay;
+	if (dy==0 && q<0) {
+		return false
+	}
+	r = q/dy
+	if (dy<0) {
+		if (r>t1) {
+			return false
+		} else if (r>t0) {
+			t0=r
+		}
+        } else if (dy>0) {
+		if (r<t0) {
+			return false
+		} else if (r<t1) {
+			t1=r
+		}
+        }
+
+	// if we reach this point, Voronoi edge is within bbox
+
+	// if t0 > 0, va needs to change
+	// rhill 2011-06-03: we need to create a new vertex rather
+	// than modifying the existing one, since the existing
+	// one is likely shared with at least another edge
+	if (t0 > 0) {
+		edge.va = &Vertex{ax+t0*dx, ay+t0*dy}
+        }
+
+	// if t1 < 1, vb needs to change
+	// rhill 2011-06-03: we need to create a new vertex rather
+	// than modifying the existing one, since the existing
+	// one is likely shared with at least another edge
+	if (t1 < 1) {
+		edge.vb = &Vertex{ax+t1*dx, ay+t1*dy}
+        }
+
+	return true
+}
+
+func equalWithEpsilon(a,b float64) bool{
+	return math.Abs(a-b)<1e-9
+}
+
+func lessThanWithEpsilon(a,b float64) bool{
+	return b-a>1e-9
+}
+
+func greaterThanWithEpsilon(a,b float64) bool{
+	return a-b>1e-9
+}
+
+
+// Connect/cut edges at bounding box
+func (s *Voronoi) clipEdges(bbox BBox) {
+	// connect all dangling edges to bounding box
+	// or get rid of them if it can't be done
+        abs_fn := math.Abs
+
+	// iterate backward so we can splice safely
+	for i := len(s.edges)-1; i >= 0; i-- {
+		edge := s.edges[i]
+		// edge is removed if:
+		//   it is wholly outside the bounding box
+		//   it is actually a point rather than a line
+		if (!s.connectEdge(edge, bbox) || !s.clipEdge(edge, bbox) || (abs_fn(edge.va.x-edge.vb.x)<1e-9 && abs_fn(edge.va.y-edge.vb.y)<1e-9)) {
+			edge.va = nil 
+			edge.vb = nil;
+			s.edges[i] = s.edges[len(s.edges)-1]
+			s.edges = s.edges[0:len(s.edges)-1]
+		}
+	}
+}
+
+func (s *Voronoi) closeCells(bbox BBox) {
+	// prune, order halfedges, then add missing ones
+	// required to close cells
+	xl := bbox.xl
+        xr := bbox.xr
+        yt := bbox.yt
+        yb := bbox.yb
+        cells := s.cells
+        abs_fn := math.Abs
+
+	for iCell := len(cells)-1; iCell >= 0; iCell-- {
+		cell := cells[iCell]
+		// trim non fully-defined halfedges and sort them counterclockwise
+		if (cell.prepare() == 0) {
+			continue
+		}
+		// close open cells
+		// step 1: find first 'unclosed' point, if any.
+		// an 'unclosed' point will be the end point of a halfedge which
+		// does not match the start point of the following halfedge
+		halfedges := cell.halfedges
+		nHalfedges := len(halfedges)
+		// special case: only one site, in which case, the viewport is the cell
+		// ...
+		// all other cases
+		iLeft := 0
+		for (iLeft < nHalfedges) {
+			iRight := (iLeft+1) % nHalfedges
+			endpoint := halfedges[iLeft].getEndpoint()
+			startpoint := halfedges[iRight].getStartpoint()
+			// if end point is not equal to start point, we need to add the missing
+			// halfedge(s) to close the cell
+			if (abs_fn(endpoint.x-startpoint.x)>=1e-9 || abs_fn(endpoint.y-startpoint.y)>=1e-9) {
+				// if we reach this point, cell needs to be closed by walking
+				// counterclockwise along the bounding box until it connects
+				// to next halfedge in the list
+				va := endpoint
+				vb := endpoint
+				// walk downward along left side
+				if (equalWithEpsilon(endpoint.x,xl) && lessThanWithEpsilon(endpoint.y,yb)) {
+					if equalWithEpsilon(startpoint.x,xl)  {
+						vb = Vertex{xl, startpoint.y}
+					} else {
+						vb = Vertex{xl, yb}
+					}
+
+				// walk rightward along bottom side
+				} else if (equalWithEpsilon(endpoint.y,yb) && lessThanWithEpsilon(endpoint.x,xr)) {
+					if equalWithEpsilon(startpoint.y,yb)  {
+						vb = Vertex{startpoint.x, yb}
+					} else {
+						vb = Vertex{xr, yb}
+					}				
+				// walk upward along right side
+				} else if (equalWithEpsilon(endpoint.x,xr) && greaterThanWithEpsilon(endpoint.y,yt)) {
+					if equalWithEpsilon(startpoint.x,xr)  {
+						vb = Vertex{xr, startpoint.y}
+					} else {
+						vb = Vertex{xr, yt}
+					}			
+				// walk leftward along top side
+				} else if (equalWithEpsilon(endpoint.y,yt) && greaterThanWithEpsilon(endpoint.x,xl)) {
+					if equalWithEpsilon(startpoint.y, yt)  {
+						vb = Vertex{startpoint.x, yt}
+					} else {
+						vb = Vertex{xl, yt}
+					}			
+				}
+				edge := s.createBorderEdge(&cell.site, &va, &vb)
+
+				cell.halfedges = append(cell.halfedges, nil)
+				halfedges = cell.halfedges			
+				copy(halfedges[iLeft+1:len(halfedges)-1], halfedges[iLeft+2:len(halfedges)])
+				halfedges[iLeft+1] = newHalfedge(edge, &cell.site, nil)
+				nHalfedges = len(halfedges)
+			}
+			iLeft++;
+		}
+        }
+}
+
+func NewVoronoi() *Voronoi {
+	v := &Voronoi{}
+	return v		
+}
+
+func (s *Voronoi) compute(sites []Vertex, bbox BBox) *Diagram {
+	// Initialize site event queue
+	sort.Sort(VerticesByY{sites})
+
+	pop := func() Vertex {
+		site := sites[0]
+		sites = sites[1:]
+		return site
+	}
+
+	site := pop()
+	
+	// process queue
+        xsitex := math.SmallestNonzeroFloat64
+        xsitey := math.SmallestNonzeroFloat64
+        var circle *CircleEvent
+
+	// main loop
+	for {
+		// we need to figure whether we handle a site or circle event
+		// for this we find out if there is a site event and it is
+		// 'earlier' than the circle event
+		circle = s.firstCircleEvent
+
+		// add beach section
+		if (circle == nil || site.y < circle.y || (site.y == circle.y && site.x < circle.x)) {
+			// only if site is not a duplicate
+			if (site.x != xsitex || site.y != xsitey) {
+				// first create cell for new site
+				s.cells = append(s.cells, newCell(site))
+				// then create a beachsection for that site
+				s.addBeachsection(site)
+				// remember last site coords to detect duplicate
+				xsitey = site.y
+				xsitex = site.x
+			}
+			site = pop()
+			// remove beach section
+		} else if (circle != nil) {	
+			s.removeBeachsection(circle.arc)
+		// all done, quit
+		} else {		
+			break
+		}
+        }
+
+	// wrapping-up:
+	//   connect dangling edges to bounding box
+	//   cut edges as per bounding box
+	//   discard edges completely outside bounding box
+	//   discard edges which are point-like
+	s.clipEdges(bbox)
+
+	//   add missing edges in order to close opened cells
+	s.closeCells(bbox)
+
+	return nil
 }

@@ -7,6 +7,10 @@ type Cell struct {
 	halfedges []*Halfedge
 }
 
+func newCell(site Vertex) *Cell {
+	return &Cell{ site: site }
+}
+
 func (t *Cell) prepare() int {
 	halfedges := t.halfedges
         iHalfedge := len(halfedges)
