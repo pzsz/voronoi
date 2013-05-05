@@ -5,6 +5,10 @@ type Vertex struct {
 	y float64
 }
 
+func NewVertex(x,y float64) Vertex {
+	return Vertex{x, y}
+}
+
 type Vertices []Vertex
 func (s Vertices) Len() int      { return len(s) }
 func (s Vertices) Swap(i, j int) { s[i], s[j] = s[j], s[i] }

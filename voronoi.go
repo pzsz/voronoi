@@ -13,8 +13,8 @@ type Voronoi struct {
 }
 
 type Diagram struct {
-	Site Vertex
-	Halfedges []Halfedges
+	Cells []*Cell
+	Edges []*Edge
 }
 
 func (s *Voronoi) getCell(site Vertex) *Cell {
@@ -28,7 +28,7 @@ func (s *Voronoi) getCell(site Vertex) *Cell {
 
 func (s *Voronoi) createEdge(lSite, rSite, va, vb *Vertex) *Edge {
 	edge := newEdge(lSite, rSite)
-
+	s.edges = append(s.edges, edge)
 	if (va != nil) {
 		s.setEdgeStartpoint(edge, lSite, rSite, va)
 	}
@@ -39,8 +39,9 @@ func (s *Voronoi) createEdge(lSite, rSite, va, vb *Vertex) *Edge {
 
 	lCell := s.getCell(*lSite)
 	rCell := s.getCell(*rSite)
+
 	lCell.halfedges = append(lCell.halfedges, newHalfedge(edge, lSite, rSite))
-	rCell.halfedges = append(lCell.halfedges, newHalfedge(edge, rSite, lSite))
+	rCell.halfedges = append(rCell.halfedges, newHalfedge(edge, rSite, lSite))
 	return edge
 }
 
@@ -297,7 +298,11 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 
 	// create a new beach section object for the site and add it to RB-tree
 	newArc := &Beachsection{site : site}
-	s.beachline.insertSuccessor(lArc.node, newArc)
+	if lArc == nil {
+		s.beachline.insertSuccessor(nil, newArc)
+	} else {
+		s.beachline.insertSuccessor(lArc.node, newArc)
+	}
 
 	// cases:
 	//
@@ -320,7 +325,7 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 	//   one new transition appears
 	//   the left and right beach section might be collapsing as a result
 	//   two new nodes added to the RB-tree
-	if (*lArc == *rArc) {
+	if (lArc == rArc) {
 		// invalidate circle event of split beach section
 		s.detachCircleEvent(lArc)
 
@@ -548,6 +553,10 @@ type BBox struct {
 	xl,xr,yt,yb float64
 }
 
+func NewBBox(xl,xr,yt,yb float64) BBox {
+	return BBox{xl, xr, yt, yb}
+}
+
 // connect dangling edges (not if a cursory test tells us
 // it is not going to be visible.
 // return value:
@@ -596,7 +605,7 @@ func (s *Voronoi) connectEdge(edge *Edge, bbox BBox) bool {
 	// bounding box to use to determine a reasonable start point
 
 	// special case: vertical line
-	if (math.IsInf(fm, 0)) {
+	if (equalWithEpsilon(ry, ly)) {
 		// doesn't intersect with viewport
 		if (fx < xl || fx >= xr) {
 			return false;
@@ -795,7 +804,7 @@ func (s *Voronoi) clipEdges(bbox BBox) {
 	// connect all dangling edges to bounding box
 	// or get rid of them if it can't be done
         abs_fn := math.Abs
-
+	
 	// iterate backward so we can splice safely
 	for i := len(s.edges)-1; i >= 0; i-- {
 		edge := s.edges[i]
@@ -804,7 +813,7 @@ func (s *Voronoi) clipEdges(bbox BBox) {
 		//   it is actually a point rather than a line
 		if (!s.connectEdge(edge, bbox) || !s.clipEdge(edge, bbox) || (abs_fn(edge.va.x-edge.vb.x)<1e-9 && abs_fn(edge.va.y-edge.vb.y)<1e-9)) {
 			edge.va = nil 
-			edge.vb = nil;
+			edge.vb = nil
 			s.edges[i] = s.edges[len(s.edges)-1]
 			s.edges = s.edges[0:len(s.edges)-1]
 		}
@@ -827,6 +836,7 @@ func (s *Voronoi) closeCells(bbox BBox) {
 		if (cell.prepare() == 0) {
 			continue
 		}
+
 		// close open cells
 		// step 1: find first 'unclosed' point, if any.
 		// an 'unclosed' point will be the end point of a halfedge which
@@ -837,7 +847,7 @@ func (s *Voronoi) closeCells(bbox BBox) {
 		// ...
 		// all other cases
 		iLeft := 0
-		for (iLeft < nHalfedges) {
+		for iLeft < nHalfedges {
 			iRight := (iLeft+1) % nHalfedges
 			endpoint := halfedges[iLeft].getEndpoint()
 			startpoint := halfedges[iRight].getStartpoint()
@@ -878,16 +888,18 @@ func (s *Voronoi) closeCells(bbox BBox) {
 					} else {
 						vb = Vertex{xl, yt}
 					}			
+				} else {
+					panic("This hsould")
 				}
-				edge := s.createBorderEdge(&cell.site, &va, &vb)
 
+				edge := s.createBorderEdge(&cell.site, &va, &vb)
 				cell.halfedges = append(cell.halfedges, nil)
-				halfedges = cell.halfedges			
-				copy(halfedges[iLeft+1:len(halfedges)-1], halfedges[iLeft+2:len(halfedges)])
+				halfedges = cell.halfedges
+				copy(halfedges[iLeft+2:len(halfedges)], halfedges[iLeft+1:len(halfedges)-1])
 				halfedges[iLeft+1] = newHalfedge(edge, &cell.site, nil)
 				nHalfedges = len(halfedges)
 			}
-			iLeft++;
+			iLeft++
 		}
         }
 }
@@ -897,14 +909,18 @@ func NewVoronoi() *Voronoi {
 	return v		
 }
 
-func (s *Voronoi) compute(sites []Vertex, bbox BBox) *Diagram {
+func (s *Voronoi) Compute(sites []Vertex, bbox BBox) *Diagram {
 	// Initialize site event queue
 	sort.Sort(VerticesByY{sites})
 
-	pop := func() Vertex {
+	pop := func() *Vertex {
+		if len(sites) == 0 {
+			return nil
+		}
+			
 		site := sites[0]
 		sites = sites[1:]
-		return site
+		return &site
 	}
 
 	site := pop()
@@ -922,13 +938,13 @@ func (s *Voronoi) compute(sites []Vertex, bbox BBox) *Diagram {
 		circle = s.firstCircleEvent
 
 		// add beach section
-		if (circle == nil || site.y < circle.y || (site.y == circle.y && site.x < circle.x)) {
+		if (site != nil && (circle == nil || site.y < circle.y || (site.y == circle.y && site.x < circle.x))) {
 			// only if site is not a duplicate
 			if (site.x != xsitex || site.y != xsitey) {
 				// first create cell for new site
-				s.cells = append(s.cells, newCell(site))
+				s.cells = append(s.cells, newCell(*site))
 				// then create a beachsection for that site
-				s.addBeachsection(site)
+				s.addBeachsection(*site)
 				// remember last site coords to detect duplicate
 				xsitey = site.y
 				xsitex = site.x
@@ -953,5 +969,8 @@ func (s *Voronoi) compute(sites []Vertex, bbox BBox) *Diagram {
 	//   add missing edges in order to close opened cells
 	s.closeCells(bbox)
 
-	return nil
+	return &Diagram{ 
+		Edges: s.edges,
+		Cells: s.cells,
+	}
 }

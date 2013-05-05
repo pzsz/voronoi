@@ -46,7 +46,7 @@ func newHalfedge(edge *Edge, lSite, rSite *Vertex) *Halfedge {
 }
 
 func (h *Halfedge) getStartpoint() Vertex {
-	if *h.edge.lSite == h.site {
+	if h.edge.lSite != nil && *h.edge.lSite == h.site {
 		return *h.edge.va
 	}
 	return *h.edge.vb
@@ -54,7 +54,7 @@ func (h *Halfedge) getStartpoint() Vertex {
 }
 
 func (h *Halfedge) getEndpoint() Vertex {
-	if *h.edge.lSite == h.site {
+	if h.edge.lSite != nil && *h.edge.lSite == h.site {
 		return *h.edge.vb
 	}
 	return *h.edge.va

@@ -13,13 +13,13 @@ func newCell(site Vertex) *Cell {
 
 func (t *Cell) prepare() int {
 	halfedges := t.halfedges
-        iHalfedge := len(halfedges)
+        iHalfedge := len(halfedges)-1
 
 	// get rid of unused halfedges
 	// rhill 2011-05-27: Keep it simple, no point here in trying
 	// to be fancy: dangling edges are a typically a minority.
 	for ;iHalfedge > 0;iHalfedge-- {
-		edge := halfedges[iHalfedge].edge;
+		edge := halfedges[iHalfedge].edge
 		if (edge.vb == nil || edge.va == nil) {
 			halfedges[iHalfedge] = halfedges[len(halfedges)-1]
 			halfedges = halfedges[:len(halfedges)-1]
