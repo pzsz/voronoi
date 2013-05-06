@@ -1,5 +1,4 @@
-// Copyright 2013 Przemyslaw Szczepaniak.
-// MIT License: See https://github.com/gorhill/Javascript-Voronoi/LICENSE.md
+// MIT License: See https://github.com/pzsz/voronoi/LICENSE.md
 
 // Author: Przemyslaw Szczepaniak (przeszczep@gmail.com)
 // Port of Raymond Hill's (rhill@raymondhill.net) javascript implementation 

@@ -1,9 +1,8 @@
-// Copyright 2013 Przemyslaw Szczepaniak.
-// MIT License: See https://github.com/gorhill/Javascript-Voronoi/LICENSE.md
+// MIT License: See https://github.com/pzsz/voronoi/LICENSE.md
 
 // Author: Przemyslaw Szczepaniak (przeszczep@gmail.com)
 // Port of Raymond Hill's (rhill@raymondhill.net) javascript implementation 
-// of Steven  Forune's algorithm to compute Voronoi diagrams
+// of Steven Forune's algorithm to compute Voronoi diagrams
 
 package voronoi
 
@@ -33,26 +32,26 @@ func (s VerticesByY) Less(i, j int) bool { return s.Vertices[i].Y < s.Vertices[j
 
 // Edge structure
 type Edge struct {
-	lSite Vertex
-	rSite Vertex
-	va    Vertex
-	vb    Vertex
+	LeftSite Vertex
+	RightSite Vertex
+	Va    Vertex
+	Vb    Vertex
 }
 
-func newEdge(lSite, rSite Vertex) *Edge {
+func newEdge(LeftSite, RightSite Vertex) *Edge {
 	return &Edge{
-		lSite: lSite,
-		rSite: rSite,
-		va:    NO_VERTEX,
-		vb:    NO_VERTEX,
+		LeftSite: LeftSite,
+		RightSite: RightSite,
+		Va:    NO_VERTEX,
+		Vb:    NO_VERTEX,
 	}
 }
 
 // Halfedge (directed edge)
 type Halfedge struct {
-	site  Vertex
-	edge  *Edge
-	angle float64
+	Site  Vertex
+	Edge  *Edge
+	Angle float64
 }
 
 // Sort interface for halfedges
@@ -64,12 +63,12 @@ func (s Halfedges) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 // For sorting by angle
 type HalfedgesByAngle struct{ Halfedges }
 
-func (s HalfedgesByAngle) Less(i, j int) bool { return s.Halfedges[i].angle < s.Halfedges[j].angle }
+func (s HalfedgesByAngle) Less(i, j int) bool { return s.Halfedges[i].Angle < s.Halfedges[j].Angle }
 
-func newHalfedge(edge *Edge, lSite, rSite Vertex) *Halfedge {
+func newHalfedge(edge *Edge, LeftSite, RightSite Vertex) *Halfedge {
 	ret := &Halfedge{
-		site: lSite,
-		edge: edge,
+		Site: LeftSite,
+		Edge: edge,
 	}
 
 	// 'angle' is a value to be used for properly sorting the
@@ -79,33 +78,33 @@ func newHalfedge(edge *Edge, lSite, rSite Vertex) *Halfedge {
 	// However, border edges have no 'site to the right': thus we
 	// use the angle of line perpendicular to the halfsegment (the
 	// edge should have both end points defined in such case.)
-	if rSite != NO_VERTEX {
-		ret.angle = math.Atan2(rSite.Y-lSite.Y, rSite.X-lSite.X)
+	if RightSite != NO_VERTEX {
+		ret.Angle = math.Atan2(RightSite.Y-LeftSite.Y, RightSite.X-LeftSite.X)
 	} else {
-		va := edge.va
-		vb := edge.vb
+		va := edge.Va
+		vb := edge.Vb
 		// rhill 2011-05-31: used to call getStartpoint()/getEndpoint(),
 		// but for performance purpose, these are expanded in place here.
-		if edge.lSite == lSite {
-			ret.angle = math.Atan2(vb.X-va.X, va.Y-vb.Y)
+		if edge.LeftSite == LeftSite {
+			ret.Angle = math.Atan2(vb.X-va.X, va.Y-vb.Y)
 		} else {
-			ret.angle = math.Atan2(va.X-vb.X, vb.Y-va.Y)
+			ret.Angle = math.Atan2(va.X-vb.X, vb.Y-va.Y)
 		}
 	}
 	return ret
 }
 
 func (h *Halfedge) getStartpoint() Vertex {
-	if h.edge.lSite == h.site {
-		return h.edge.va
+	if h.Edge.LeftSite == h.Site {
+		return h.Edge.Va
 	}
-	return h.edge.vb
+	return h.Edge.Vb
 
 }
 
 func (h *Halfedge) getEndpoint() Vertex {
-	if h.edge.lSite == h.site {
-		return h.edge.vb
+	if h.Edge.LeftSite == h.Site {
+		return h.Edge.Vb
 	}
-	return h.edge.va
+	return h.Edge.Va
 }

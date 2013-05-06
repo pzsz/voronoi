@@ -1,27 +1,55 @@
-// Copyright 2013 Przemyslaw Szczepaniak.
-// MIT License: See https://github.com/gorhill/Javascript-Voronoi/LICENSE.md
+// MIT License: See https://github.com/pzsz/voronoi/LICENSE.md
 
 // Author: Przemyslaw Szczepaniak (przeszczep@gmail.com)
 // Port of Raymond Hill's (rhill@raymondhill.net) javascript implementation 
-// of Steven  Forune's algorithm to compute Voronoi diagrams
+// of Steven Forune's algorithm to compute Voronoi diagrams
 
-package voronoi
+package voronoi_test
 
 import (
-	"fmt"
-	//	. "github.com/pzsz/voronoi"
+	. "github.com/pzsz/voronoi"
 	"testing"
 )
 
-func TestVoronoi(t *testing.T) {
-	v := NewVoronoi()
-	sites := []Vertex{Vertex{4, 5},
+func verifyDiagram(diagram *Diagram, edgesCount, cellsCount, perCellCount int, t *testing.T) {
+	if len(diagram.Edges) != edgesCount {
+		t.Errorf("Expected %d edges not %d", edgesCount, len(diagram.Edges))
+	}
+
+	if len(diagram.Cells) != cellsCount {
+		t.Errorf("Expected %d cells not %d", cellsCount, len(diagram.Cells))
+	}
+
+	if perCellCount > 0 {
+		for _, cell := range diagram.Cells {
+			if len(cell.Halfedges) != perCellCount {
+				t.Errorf("Expected per cell edge count expected %d, not %d", perCellCount, len(cell.Halfedges))
+			}
+		}
+	}
+}
+
+func TestVoronoi2Points(t *testing.T) {
+	sites := []Vertex{
+		Vertex{4, 5},
 		Vertex{6, 5},
 	}
 
-	diagram := v.Compute(sites, NewBBox(0, 10, 0, 10))
+	verifyDiagram(NewVoronoi().Compute(sites, NewBBox(0, 10, 0, 10), true),
+		7, 2, 4, t)
+	verifyDiagram(NewVoronoi().Compute(sites, NewBBox(0, 10, 0, 10), false),
+		1, 2, 1, t)
+}
 
-	for _, e := range diagram.Edges {
-		fmt.Printf("final: %v->%v\n", e.va, e.vb)
+func TestVoronoi3Points(t *testing.T) {
+	sites := []Vertex{
+		Vertex{4, 5},
+		Vertex{6, 5},
+		Vertex{5, 8},
 	}
+
+	verifyDiagram(NewVoronoi().Compute(sites, NewBBox(0, 10, 0, 10), true),
+		10, 3, -1, t)
+	verifyDiagram(NewVoronoi().Compute(sites, NewBBox(0, 10, 0, 10), false),
+		3, 3, 2, t)
 }
