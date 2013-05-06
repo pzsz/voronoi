@@ -1,8 +1,8 @@
 # Voronoi diagrams in Go
 
 A Implementation of of Steven J. Fortune's algorithm to
-efficiently compute Voronoi diagrams in Go language. Based on
-Raymond Hill (rhill@raymondhill.net) javascript implementation 
+efficiently compute Voronoi diagrams in Go language. Based on 
+a Raymond Hill (rhill@raymondhill.net) javascript implementation 
 (https://raw.github.com/gorhill/Javascript-Voronoi).
 
 ## Usage

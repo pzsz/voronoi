@@ -13,6 +13,8 @@ type Voronoi struct {
 	cells []*Cell
 	edges []*Edge
 
+	cellsMap map[Vertex]*Cell
+
 	beachline        rbTree
 	circleEvents     rbTree
 	firstCircleEvent *CircleEvent
@@ -24,12 +26,7 @@ type Diagram struct {
 }
 
 func (s *Voronoi) getCell(site Vertex) *Cell {
-	for _, cell := range s.cells {
-		if cell.Site == site {
-			return cell
-		}
-	}
-	return nil
+	return s.cellsMap[site]
 }
 
 func (s *Voronoi) createEdge(LeftSite, RightSite, va, vb Vertex) *Edge {
@@ -95,7 +92,7 @@ func (s *Beachsection) getNode() *rbNode {
 
 // Calculate the left break point of a particular beach section,
 // given a particular sweep line
-func (s *Voronoi) leftBreakPoint(arc *Beachsection, directrix float64) float64 {
+func leftBreakPoint(arc *Beachsection, directrix float64) float64 {
 	site := arc.site
 	rfocx := site.X
 	rfocy := site.Y
@@ -129,10 +126,10 @@ func (s *Voronoi) leftBreakPoint(arc *Beachsection, directrix float64) float64 {
 
 // calculate the right break point of a particular beach section,
 // given a particular directrix
-func (s *Voronoi) rightBreakPoint(arc *Beachsection, directrix float64) float64 {
+func rightBreakPoint(arc *Beachsection, directrix float64) float64 {
 	rArc := arc.getNode().next
 	if rArc != nil {
-		return s.leftBreakPoint(rArc.value.(*Beachsection), directrix)
+		return leftBreakPoint(rArc.value.(*Beachsection), directrix)
 	}
 	site := arc.site
 	if site.Y == directrix {
@@ -255,7 +252,7 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 
 	for node != nil {
 		nodeBeachline := node.value.(*Beachsection)
-		dxl = s.leftBreakPoint(nodeBeachline, directrix) - x
+		dxl = leftBreakPoint(nodeBeachline, directrix) - x
 		// x lessThanWithEpsilon xl => falls somewhere before the left edge of the beachsection
 		if dxl > 1e-9 {
 			// this case should never happen
@@ -265,7 +262,7 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 			//    }
 			node = node.left
 		} else {
-			dxr = x - s.rightBreakPoint(nodeBeachline, directrix)
+			dxr = x - rightBreakPoint(nodeBeachline, directrix)
 			// x greaterThanWithEpsilon xr => falls somewhere after the right edge of the beachsection
 			if dxr > 1e-9 {
 				if node.right == nil {
@@ -551,6 +548,7 @@ func (s *Voronoi) detachCircleEvent(arc *Beachsection) {
 	}
 }
 
+// Bounding box
 type BBox struct {
 	Xl, Xr, Yt, Yb float64
 }
@@ -564,7 +562,7 @@ func NewBBox(xl, xr, yt, yb float64) BBox {
 // return value:
 //   false: the dangling endpoint couldn't be connected
 //   true: the dangling endpoint could be connected
-func (s *Voronoi) connectEdge(edge *Edge, bbox BBox) bool {
+func connectEdge(edge *Edge, bbox BBox) bool {
 	// skip if end point already connected
 	vb := edge.Vb
 	if vb != NO_VERTEX {
@@ -589,7 +587,7 @@ func (s *Voronoi) connectEdge(edge *Edge, bbox BBox) bool {
 	var fm, fb float64
 
 	// get the line equation of the bisector if line is not vertical
-	if ry != ly {
+	if !equalWithEpsilon(ry, ly) {
 		fm = (lx - rx) / (ry - ly)
 		fb = fy - fm*fx
 	}
@@ -680,7 +678,7 @@ func (s *Voronoi) connectEdge(edge *Edge, bbox BBox) bool {
 //   http://www.skytopia.com/project/articles/compsci/clipping.html
 // Thanks!
 // A bit modified to minimize code paths
-func (s *Voronoi) clipEdge(edge *Edge, bbox BBox) bool {
+func clipEdge(edge *Edge, bbox BBox) bool {
 	ax := edge.Va.X
 	ay := edge.Va.Y
 	bx := edge.Vb.X
@@ -689,6 +687,7 @@ func (s *Voronoi) clipEdge(edge *Edge, bbox BBox) bool {
 	t1 := float64(1)
 	dx := bx - ax
 	dy := by - ay
+
 	// left
 	q := ax - bbox.Xl
 	if dx == 0 && q < 0 {
@@ -812,7 +811,7 @@ func (s *Voronoi) clipEdges(bbox BBox) {
 		// edge is removed if:
 		//   it is wholly outside the bounding box
 		//   it is actually a point rather than a line
-		if !s.connectEdge(edge, bbox) || !s.clipEdge(edge, bbox) || (abs_fn(edge.Va.X-edge.Vb.X) < 1e-9 && abs_fn(edge.Va.Y-edge.Vb.Y) < 1e-9) {
+		if !connectEdge(edge, bbox) || !clipEdge(edge, bbox) || (abs_fn(edge.Va.X-edge.Vb.X) < 1e-9 && abs_fn(edge.Va.Y-edge.Vb.Y) < 1e-9) {
 			edge.Va = NO_VERTEX
 			edge.Vb = NO_VERTEX
 			s.edges[i] = s.edges[len(s.edges)-1]
@@ -908,11 +907,16 @@ func (s *Voronoi) closeCells(bbox BBox) {
 	}
 }
 
+// Create new voronoi object
 func NewVoronoi() *Voronoi {
-	v := &Voronoi{}
+	v := &Voronoi{
+		cellsMap: make (map[Vertex]*Cell), 
+	}
 	return v
 }
 
+// Compute voronoi diagram. If closeCells == true, edges from bounding box will be 
+// included in diagram.
 func (s *Voronoi) Compute(sites []Vertex, bbox BBox, closeCells bool) *Diagram {
 	// Initialize site event queue
 	sort.Sort(VerticesByY{sites})
@@ -946,7 +950,9 @@ func (s *Voronoi) Compute(sites []Vertex, bbox BBox, closeCells bool) *Diagram {
 			// only if site is not a duplicate
 			if site.X != xsitex || site.Y != xsitey {
 				// first create cell for new site
-				s.cells = append(s.cells, newCell(*site))
+				nCell := newCell(*site)
+				s.cells = append(s.cells, nCell)
+				s.cellsMap[*site] = nCell
 				// then create a beachsection for that site
 				s.addBeachsection(*site)
 				// remember last site coords to detect duplicate
