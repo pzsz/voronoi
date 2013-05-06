@@ -17,6 +17,9 @@ type Vertex struct {
 	Y float64
 }
 
+// Vertex representing lack of vertex (or bad vertex)
+var NO_VERTEX = Vertex{math.Inf(1), math.Inf(1)}
+
 // For sort interface
 type Vertices []Vertex
 
@@ -30,16 +33,18 @@ func (s VerticesByY) Less(i, j int) bool { return s.Vertices[i].Y < s.Vertices[j
 
 // Edge structure
 type Edge struct {
-	lSite *Vertex
-	rSite *Vertex
-	va    *Vertex
-	vb    *Vertex
+	lSite Vertex
+	rSite Vertex
+	va    Vertex
+	vb    Vertex
 }
 
-func newEdge(lSite, rSite *Vertex) *Edge {
+func newEdge(lSite, rSite Vertex) *Edge {
 	return &Edge{
 		lSite: lSite,
 		rSite: rSite,
+		va:    NO_VERTEX,
+		vb:    NO_VERTEX,
 	}
 }
 
@@ -61,9 +66,9 @@ type HalfedgesByAngle struct{ Halfedges }
 
 func (s HalfedgesByAngle) Less(i, j int) bool { return s.Halfedges[i].angle < s.Halfedges[j].angle }
 
-func newHalfedge(edge *Edge, lSite, rSite *Vertex) *Halfedge {
+func newHalfedge(edge *Edge, lSite, rSite Vertex) *Halfedge {
 	ret := &Halfedge{
-		site: *lSite,
+		site: lSite,
 		edge: edge,
 	}
 
@@ -74,14 +79,14 @@ func newHalfedge(edge *Edge, lSite, rSite *Vertex) *Halfedge {
 	// However, border edges have no 'site to the right': thus we
 	// use the angle of line perpendicular to the halfsegment (the
 	// edge should have both end points defined in such case.)
-	if rSite != nil {
+	if rSite != NO_VERTEX {
 		ret.angle = math.Atan2(rSite.Y-lSite.Y, rSite.X-lSite.X)
 	} else {
 		va := edge.va
 		vb := edge.vb
 		// rhill 2011-05-31: used to call getStartpoint()/getEndpoint(),
 		// but for performance purpose, these are expanded in place here.
-		if *edge.lSite == *lSite {
+		if edge.lSite == lSite {
 			ret.angle = math.Atan2(vb.X-va.X, va.Y-vb.Y)
 		} else {
 			ret.angle = math.Atan2(va.X-vb.X, vb.Y-va.Y)
@@ -91,16 +96,16 @@ func newHalfedge(edge *Edge, lSite, rSite *Vertex) *Halfedge {
 }
 
 func (h *Halfedge) getStartpoint() Vertex {
-	if h.edge.lSite != nil && *h.edge.lSite == h.site {
-		return *h.edge.va
+	if h.edge.lSite == h.site {
+		return h.edge.va
 	}
-	return *h.edge.vb
+	return h.edge.vb
 
 }
 
 func (h *Halfedge) getEndpoint() Vertex {
-	if h.edge.lSite != nil && *h.edge.lSite == h.site {
-		return *h.edge.vb
+	if h.edge.lSite == h.site {
+		return h.edge.vb
 	}
-	return *h.edge.va
+	return h.edge.va
 }

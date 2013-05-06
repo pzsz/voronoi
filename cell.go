@@ -27,7 +27,7 @@ func (t *Cell) prepare() int {
 	// to be fancy: dangling edges are a typically a minority.
 	for ; iHalfedge > 0; iHalfedge-- {
 		edge := halfedges[iHalfedge].edge
-		if edge.vb == nil || edge.va == nil {
+		if edge.vb == NO_VERTEX || edge.va == NO_VERTEX {
 			halfedges[iHalfedge] = halfedges[len(halfedges)-1]
 			halfedges = halfedges[:len(halfedges)-1]
 		}

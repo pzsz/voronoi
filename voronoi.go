@@ -33,27 +33,27 @@ func (s *Voronoi) getCell(site Vertex) *Cell {
 	return nil
 }
 
-func (s *Voronoi) createEdge(lSite, rSite, va, vb *Vertex) *Edge {
+func (s *Voronoi) createEdge(lSite, rSite, va, vb Vertex) *Edge {
 	edge := newEdge(lSite, rSite)
 	s.edges = append(s.edges, edge)
-	if va != nil {
+	if va != NO_VERTEX {
 		s.setEdgeStartpoint(edge, lSite, rSite, va)
 	}
 
-	if vb != nil {
+	if vb != NO_VERTEX {
 		s.setEdgeEndpoint(edge, lSite, rSite, vb)
 	}
 
-	lCell := s.getCell(*lSite)
-	rCell := s.getCell(*rSite)
+	lCell := s.getCell(lSite)
+	rCell := s.getCell(rSite)
 
 	lCell.halfedges = append(lCell.halfedges, newHalfedge(edge, lSite, rSite))
 	rCell.halfedges = append(rCell.halfedges, newHalfedge(edge, rSite, lSite))
 	return edge
 }
 
-func (s *Voronoi) createBorderEdge(lSite, va, vb *Vertex) *Edge {
-	edge := newEdge(lSite, nil)
+func (s *Voronoi) createBorderEdge(lSite, va, vb Vertex) *Edge {
+	edge := newEdge(lSite, NO_VERTEX)
 	edge.va = va
 	edge.vb = vb
 
@@ -61,19 +61,19 @@ func (s *Voronoi) createBorderEdge(lSite, va, vb *Vertex) *Edge {
 	return edge
 }
 
-func (s *Voronoi) setEdgeStartpoint(edge *Edge, lSite, rSite, vertex *Vertex) {
-	if edge.va == nil && edge.vb == nil {
+func (s *Voronoi) setEdgeStartpoint(edge *Edge, lSite, rSite, vertex Vertex) {
+	if edge.va == NO_VERTEX && edge.vb == NO_VERTEX {
 		edge.va = vertex
 		edge.lSite = lSite
 		edge.rSite = rSite
-	} else if *edge.lSite == *rSite {
+	} else if edge.lSite == rSite {
 		edge.vb = vertex
 	} else {
 		edge.va = vertex
 	}
 }
 
-func (s *Voronoi) setEdgeEndpoint(edge *Edge, lSite, rSite, vertex *Vertex) {
+func (s *Voronoi) setEdgeEndpoint(edge *Edge, lSite, rSite, vertex Vertex) {
 	s.setEdgeStartpoint(edge, rSite, lSite, vertex)
 }
 
@@ -84,15 +84,17 @@ type Beachsection struct {
 	edge        *Edge
 }
 
+// rbNodeValue intergface
 func (s *Beachsection) bindToNode(node *rbNode) {
 	s.node = node
 }
 
+// rbNodeValue intergface
 func (s *Beachsection) getNode() *rbNode {
 	return s.node
 }
 
-// calculate the left break point of a particular beach section,
+// Calculate the left break point of a particular beach section,
 // given a particular sweep line
 func (s *Voronoi) leftBreakPoint(arc *Beachsection, directrix float64) float64 {
 	site := arc.site
@@ -222,7 +224,7 @@ func (s *Voronoi) removeBeachsection(beachsection *Beachsection) {
 	for iArc := 1; iArc < nArcs; iArc++ {
 		rArc = disappearingTransitions[iArc]
 		lArc = disappearingTransitions[iArc-1]
-		s.setEdgeStartpoint(rArc.edge, &lArc.site, &rArc.site, &vertex)
+		s.setEdgeStartpoint(rArc.edge, lArc.site, rArc.site, vertex)
 	}
 
 	// create a new edge as we have now a new transition between
@@ -232,7 +234,7 @@ func (s *Voronoi) removeBeachsection(beachsection *Beachsection) {
 	// on the left)
 	lArc = disappearingTransitions[0]
 	rArc = disappearingTransitions[nArcs-1]
-	rArc.edge = s.createEdge(&lArc.site, &rArc.site, nil, &vertex)
+	rArc.edge = s.createEdge(lArc.site, rArc.site, NO_VERTEX, vertex)
 
 	// create circle events if any for beach sections left in the beachline
 	// adjacent to collapsed sections
@@ -342,7 +344,7 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 
 		// since we have a new transition between two beach sections,
 		// a new edge is born
-		newArc.edge = s.createEdge(&lArc.site, &newArc.site, nil, nil)
+		newArc.edge = s.createEdge(lArc.site, newArc.site, NO_VERTEX, NO_VERTEX)
 		rArc.edge = newArc.edge
 
 		// check whether the left and right beach sections are collapsing
@@ -363,7 +365,7 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 	//   no collapsing beach section as a result
 	//   new beach section become right-most node of the RB-tree
 	if lArc != nil && rArc == nil {
-		newArc.edge = s.createEdge(&lArc.site, &newArc.site, nil, nil)
+		newArc.edge = s.createEdge(lArc.site, newArc.site, NO_VERTEX, NO_VERTEX)
 		return
 	}
 
@@ -412,11 +414,11 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 		vertex := Vertex{(cy*hb-by*hc)/d + ax, (bx*hc-cx*hb)/d + ay}
 
 		// one transition disappear
-		s.setEdgeStartpoint(rArc.edge, &lSite, &rSite, &vertex)
+		s.setEdgeStartpoint(rArc.edge, lSite, rSite, vertex)
 
 		// two new transitions appear at the new vertex location
-		newArc.edge = s.createEdge(&lSite, &site, nil, &vertex)
-		rArc.edge = s.createEdge(&site, &rSite, nil, &vertex)
+		newArc.edge = s.createEdge(lSite, site, NO_VERTEX, vertex)
+		rArc.edge = s.createEdge(site, rSite, NO_VERTEX, vertex)
 
 		// check whether the left and right beach sections are collapsing
 		// and if so create circle events, to handle the point of collapse.
@@ -566,7 +568,7 @@ func NewBBox(xl, xr, yt, yb float64) BBox {
 func (s *Voronoi) connectEdge(edge *Edge, bbox BBox) bool {
 	// skip if end point already connected
 	vb := edge.vb
-	if vb != nil {
+	if vb != NO_VERTEX {
 		return true
 	}
 
@@ -613,60 +615,60 @@ func (s *Voronoi) connectEdge(edge *Edge, bbox BBox) bool {
 		}
 		// downward
 		if lx > rx {
-			if va == nil {
-				va = &Vertex{fx, yt}
+			if va == NO_VERTEX {
+				va = Vertex{fx, yt}
 			} else if va.Y >= yb {
 				return false
 			}
-			vb = &Vertex{fx, yb}
+			vb = Vertex{fx, yb}
 			// upward
 		} else {
-			if va == nil {
-				va = &Vertex{fx, yb}
+			if va == NO_VERTEX {
+				va = Vertex{fx, yb}
 			} else if va.Y < yt {
 				return false
 			}
-			vb = &Vertex{fx, yt}
+			vb = Vertex{fx, yt}
 		}
 		// closer to vertical than horizontal, connect start point to the
 		// top or bottom side of the bounding box
 	} else if fm < -1 || fm > 1 {
 		// downward
 		if lx > rx {
-			if va == nil {
-				va = &Vertex{(yt - fb) / fm, yt}
+			if va == NO_VERTEX {
+				va = Vertex{(yt - fb) / fm, yt}
 			} else if va.Y >= yb {
 				return false
 			}
-			vb = &Vertex{(yb - fb) / fm, yb}
+			vb = Vertex{(yb - fb) / fm, yb}
 			// upward
 		} else {
-			if va == nil {
-				va = &Vertex{(yb - fb) / fm, yb}
+			if va == NO_VERTEX {
+				va = Vertex{(yb - fb) / fm, yb}
 			} else if va.Y < yt {
 				return false
 			}
-			vb = &Vertex{(yt - fb) / fm, yt}
+			vb = Vertex{(yt - fb) / fm, yt}
 		}
 		// closer to horizontal than vertical, connect start point to the
 		// left or right side of the bounding box
 	} else {
 		// rightward
 		if ly < ry {
-			if va == nil {
-				va = &Vertex{xl, fm*xl + fb}
+			if va == NO_VERTEX {
+				va = Vertex{xl, fm*xl + fb}
 			} else if va.X >= xr {
 				return false
 			}
-			vb = &Vertex{xr, fm*xr + fb}
+			vb = Vertex{xr, fm*xr + fb}
 			// leftward
 		} else {
-			if va == nil {
-				va = &Vertex{xr, fm*xr + fb}
+			if va == NO_VERTEX {
+				va = Vertex{xr, fm*xr + fb}
 			} else if va.X < xl {
 				return false
 			}
-			vb = &Vertex{xl, fm*xl + fb}
+			vb = Vertex{xl, fm*xl + fb}
 		}
 	}
 	edge.va = va
@@ -773,7 +775,7 @@ func (s *Voronoi) clipEdge(edge *Edge, bbox BBox) bool {
 	// than modifying the existing one, since the existing
 	// one is likely shared with at least another edge
 	if t0 > 0 {
-		edge.va = &Vertex{ax + t0*dx, ay + t0*dy}
+		edge.va = Vertex{ax + t0*dx, ay + t0*dy}
 	}
 
 	// if t1 < 1, vb needs to change
@@ -781,7 +783,7 @@ func (s *Voronoi) clipEdge(edge *Edge, bbox BBox) bool {
 	// than modifying the existing one, since the existing
 	// one is likely shared with at least another edge
 	if t1 < 1 {
-		edge.vb = &Vertex{ax + t1*dx, ay + t1*dy}
+		edge.vb = Vertex{ax + t1*dx, ay + t1*dy}
 	}
 
 	return true
@@ -812,8 +814,8 @@ func (s *Voronoi) clipEdges(bbox BBox) {
 		//   it is wholly outside the bounding box
 		//   it is actually a point rather than a line
 		if !s.connectEdge(edge, bbox) || !s.clipEdge(edge, bbox) || (abs_fn(edge.va.X-edge.vb.X) < 1e-9 && abs_fn(edge.va.Y-edge.vb.Y) < 1e-9) {
-			edge.va = nil
-			edge.vb = nil
+			edge.va = NO_VERTEX
+			edge.vb = NO_VERTEX
 			s.edges[i] = s.edges[len(s.edges)-1]
 			s.edges = s.edges[0 : len(s.edges)-1]
 		}
@@ -893,13 +895,13 @@ func (s *Voronoi) closeCells(bbox BBox) {
 				}
 
 				// Create new border edge. Slide it into iLeft+1 position
-				edge := s.createBorderEdge(&cell.site, &va, &vb)
+				edge := s.createBorderEdge(cell.site, va, vb)
 				cell.halfedges = append(cell.halfedges, nil)
 				halfedges = cell.halfedges
 				nHalfedges = len(halfedges)
 
 				copy(halfedges[iLeft+2:len(halfedges)], halfedges[iLeft+1:len(halfedges)-1])
-				halfedges[iLeft+1] = newHalfedge(edge, &cell.site, nil)
+				halfedges[iLeft+1] = newHalfedge(edge, cell.site, NO_VERTEX)
 
 			}
 			iLeft++
@@ -961,6 +963,8 @@ func (s *Voronoi) Compute(sites []Vertex, bbox BBox) *Diagram {
 			break
 		}
 	}
+
+	dbg("> %v\n", s.edges[0])
 
 	// wrapping-up:
 	//   connect dangling edges to bounding box
