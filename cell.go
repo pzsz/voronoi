@@ -37,5 +37,6 @@ func (t *Cell) prepare() int {
 	}
 
 	sort.Sort(HalfedgesByAngle{halfedges})
+	t.Halfedges = halfedges
 	return len(halfedges)
 }

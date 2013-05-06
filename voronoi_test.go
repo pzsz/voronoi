@@ -9,6 +9,7 @@ package voronoi_test
 import (
 	. "github.com/pzsz/voronoi"
 	"testing"
+	"math/rand"
 )
 
 func verifyDiagram(diagram *Diagram, edgesCount, cellsCount, perCellCount int, t *testing.T) {
@@ -52,4 +53,16 @@ func TestVoronoi3Points(t *testing.T) {
 		10, 3, -1, t)
 	verifyDiagram(NewVoronoi().Compute(sites, NewBBox(0, 10, 0, 10), false),
 		3, 3, 2, t)
+}
+
+func Benchmark1000(b *testing.B) {
+	rand.Seed(1234567)
+	b.StopTimer()
+	sites := make([]Vertex,100)
+	for j := 0; j < 100; j++ {
+		sites[j].X = rand.Float64() * 100
+		sites[j].Y = rand.Float64() * 100
+	}
+	b.StartTimer()
+	NewVoronoi().Compute(sites, NewBBox(0, 100, 0, 100), true)
 }

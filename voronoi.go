@@ -843,6 +843,7 @@ func (s *Voronoi) closeCells(bbox BBox) {
 		// does not match the start point of the following halfedge
 		halfedges := cell.Halfedges
 		nHalfedges := len(halfedges)
+
 		// special case: only one site, in which case, the viewport is the cell
 		// ...
 		// all other cases
@@ -889,7 +890,7 @@ func (s *Voronoi) closeCells(bbox BBox) {
 						vb = Vertex{xl, yt}
 					}
 				} else {
-					panic("This should not happen")
+					break
 				}
 
 				// Create new border edge. Slide it into iLeft+1 position
