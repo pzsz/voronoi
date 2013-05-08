@@ -850,8 +850,8 @@ func (s *Voronoi) closeCells(bbox BBox) {
 		iLeft := 0
 		for iLeft < nHalfedges {
 			iRight := (iLeft + 1) % nHalfedges
-			endpoint := halfedges[iLeft].getEndpoint()
-			startpoint := halfedges[iRight].getStartpoint()
+			endpoint := halfedges[iLeft].GetEndpoint()
+			startpoint := halfedges[iRight].GetStartpoint()
 			// if end point is not equal to start point, we need to add the missing
 			// halfedge(s) to close the cell
 			if abs_fn(endpoint.X-startpoint.X) >= 1e-9 || abs_fn(endpoint.Y-startpoint.Y) >= 1e-9 {
@@ -890,7 +890,7 @@ func (s *Voronoi) closeCells(bbox BBox) {
 						vb = Vertex{xl, yt}
 					}
 				} else {
-					break
+		//			break
 				}
 
 				// Create new border edge. Slide it into iLeft+1 position

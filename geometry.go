@@ -63,7 +63,7 @@ func (s Halfedges) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 // For sorting by angle
 type HalfedgesByAngle struct{ Halfedges }
 
-func (s HalfedgesByAngle) Less(i, j int) bool { return s.Halfedges[i].Angle < s.Halfedges[j].Angle }
+func (s HalfedgesByAngle) Less(i, j int) bool { return s.Halfedges[i].Angle > s.Halfedges[j].Angle }
 
 func newHalfedge(edge *Edge, LeftSite, RightSite Vertex) *Halfedge {
 	ret := &Halfedge{
@@ -83,7 +83,7 @@ func newHalfedge(edge *Edge, LeftSite, RightSite Vertex) *Halfedge {
 	} else {
 		va := edge.Va
 		vb := edge.Vb
-		// rhill 2011-05-31: used to call getStartpoint()/getEndpoint(),
+		// rhill 2011-05-31: used to call GetStartpoint()/GetEndpoint(),
 		// but for performance purpose, these are expanded in place here.
 		if edge.LeftSite == LeftSite {
 			ret.Angle = math.Atan2(vb.X-va.X, va.Y-vb.Y)
@@ -94,7 +94,7 @@ func newHalfedge(edge *Edge, LeftSite, RightSite Vertex) *Halfedge {
 	return ret
 }
 
-func (h *Halfedge) getStartpoint() Vertex {
+func (h *Halfedge) GetStartpoint() Vertex {
 	if h.Edge.LeftSite == h.Site {
 		return h.Edge.Va
 	}
@@ -102,7 +102,7 @@ func (h *Halfedge) getStartpoint() Vertex {
 
 }
 
-func (h *Halfedge) getEndpoint() Vertex {
+func (h *Halfedge) GetEndpoint() Vertex {
 	if h.Edge.LeftSite == h.Site {
 		return h.Edge.Vb
 	}
