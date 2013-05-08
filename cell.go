@@ -28,8 +28,9 @@ func (t *Cell) prepare() int {
 	// get rid of unused halfedges
 	// rhill 2011-05-27: Keep it simple, no point here in trying
 	// to be fancy: dangling edges are a typically a minority.
-	for ; iHalfedge > 0; iHalfedge-- {
+	for ; iHalfedge >= 0; iHalfedge-- {
 		edge := halfedges[iHalfedge].Edge
+
 		if edge.Vb == NO_VERTEX || edge.Va == NO_VERTEX {
 			halfedges[iHalfedge] = halfedges[len(halfedges)-1]
 			halfedges = halfedges[:len(halfedges)-1]

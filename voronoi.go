@@ -8,6 +8,7 @@ package voronoi
 
 import "math"
 import "sort"
+import "fmt"
 
 type Voronoi struct {
 	cells []*Cell
@@ -26,7 +27,11 @@ type Diagram struct {
 }
 
 func (s *Voronoi) getCell(site Vertex) *Cell {
-	return s.cellsMap[site]
+	ret := s.cellsMap[site]
+	if ret == nil {
+		panic(fmt.Sprintf("Couldn't find cell for site %v" , site))
+	}
+	return ret
 }
 
 func (s *Voronoi) createEdge(LeftSite, RightSite, va, vb Vertex) *Edge {
@@ -830,8 +835,7 @@ func (s *Voronoi) closeCells(bbox BBox) {
 	cells := s.cells
 	abs_fn := math.Abs
 
-	for iCell := len(cells) - 1; iCell >= 0; iCell-- {
-		cell := cells[iCell]
+	for _, cell := range cells {
 		// trim non fully-defined halfedges and sort them counterclockwise
 		if cell.prepare() == 0 {
 			continue
@@ -980,6 +984,10 @@ func (s *Voronoi) Compute(sites []Vertex, bbox BBox, closeCells bool) *Diagram {
 	//   add missing edges in order to close opened cells
 	if closeCells {
 		s.closeCells(bbox)
+	} else {
+		for _, cell := range s.cells {			
+			cell.prepare()
+		}
 	}
 	
 	return &Diagram{
