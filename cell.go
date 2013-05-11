@@ -12,7 +12,7 @@ import "sort"
 // Cell of voronoi diagram
 type Cell struct {
 	// Site of the cell
-	Site      Vertex
+	Site Vertex
 	// Array of halfedges sorted counterclockwise
 	Halfedges []*Halfedge
 }

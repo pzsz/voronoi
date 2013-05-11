@@ -29,7 +29,7 @@ type Diagram struct {
 func (s *Voronoi) getCell(site Vertex) *Cell {
 	ret := s.cellsMap[site]
 	if ret == nil {
-		panic(fmt.Sprintf("Couldn't find cell for site %v" , site))
+		panic(fmt.Sprintf("Couldn't find cell for site %v", site))
 	}
 	return ret
 }
@@ -894,7 +894,7 @@ func (s *Voronoi) closeCells(bbox BBox) {
 						vb = Vertex{xl, yt}
 					}
 				} else {
-		//			break
+					//			break
 				}
 
 				// Create new border edge. Slide it into iLeft+1 position
@@ -912,17 +912,13 @@ func (s *Voronoi) closeCells(bbox BBox) {
 	}
 }
 
-// Create new voronoi object
-func NewVoronoi() *Voronoi {
-	v := &Voronoi{
-		cellsMap: make (map[Vertex]*Cell), 
-	}
-	return v
-}
-
 // Compute voronoi diagram. If closeCells == true, edges from bounding box will be 
 // included in diagram.
-func (s *Voronoi) Compute(sites []Vertex, bbox BBox, closeCells bool) *Diagram {
+func ComputeDiagram(sites []Vertex, bbox BBox, closeCells bool) *Diagram {
+	s := &Voronoi{
+		cellsMap: make(map[Vertex]*Cell),
+	}
+
 	// Initialize site event queue
 	sort.Sort(VerticesByY{sites})
 
@@ -985,11 +981,11 @@ func (s *Voronoi) Compute(sites []Vertex, bbox BBox, closeCells bool) *Diagram {
 	if closeCells {
 		s.closeCells(bbox)
 	} else {
-		for _, cell := range s.cells {			
+		for _, cell := range s.cells {
 			cell.prepare()
 		}
 	}
-	
+
 	return &Diagram{
 		Edges: s.edges,
 		Cells: s.cells,

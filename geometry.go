@@ -32,18 +32,18 @@ func (s VerticesByY) Less(i, j int) bool { return s.Vertices[i].Y < s.Vertices[j
 
 // Edge structure
 type Edge struct {
-	LeftSite Vertex
+	LeftSite  Vertex
 	RightSite Vertex
-	Va    Vertex
-	Vb    Vertex
+	Va        Vertex
+	Vb        Vertex
 }
 
 func newEdge(LeftSite, RightSite Vertex) *Edge {
 	return &Edge{
-		LeftSite: LeftSite,
+		LeftSite:  LeftSite,
 		RightSite: RightSite,
-		Va:    NO_VERTEX,
-		Vb:    NO_VERTEX,
+		Va:        NO_VERTEX,
+		Vb:        NO_VERTEX,
 	}
 }
 
