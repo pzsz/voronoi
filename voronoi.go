@@ -22,6 +22,7 @@ type Voronoi struct {
 }
 
 type Diagram struct {
+	Sites map[Vertex] *Cell
 	Cells []*Cell
 	Edges []*Edge
 }
@@ -986,8 +987,13 @@ func ComputeDiagram(sites []Vertex, bbox BBox, closeCells bool) *Diagram {
 		}
 	}
 
-	return &Diagram{
+	result := &Diagram{
+		Sites: make(map[Vertex] *Cell),
 		Edges: s.edges,
 		Cells: s.cells,
 	}
+	for _, cell := range s.cells {
+		result.Sites[cell.Site] = cell
+	}
+	return result
 }

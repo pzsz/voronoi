@@ -1,4 +1,15 @@
+// Copyright 2013 Przemyslaw Szczepaniak.
+// MIT License: See https://github.com/gorhill/Javascript-Voronoi/LICENSE.md
+
+// Author: Przemyslaw Szczepaniak (przeszczep@gmail.com)
+// Utils for processing voronoi diagrams
+
 package utils
+
+import (
+	"github.com/pzsz/voronoi"
+	"math/rand"
+)
 
 // Generate random sites in given bounding box
 func RandomSites(bbox voronoi.BBox, count int) []voronoi.Vertex {
