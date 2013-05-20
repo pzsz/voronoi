@@ -32,25 +32,25 @@ func (s VerticesByY) Less(i, j int) bool { return s.Vertices[i].Y < s.Vertices[j
 
 // Edge structure
 type Edge struct {
-	LeftSite  Vertex
-	RightSite Vertex
+	LeftCell  *Cell
+	RightCell *Cell
 	Va        Vertex
 	Vb        Vertex
 }
 
-func (e *Edge) GetOtherSite(site Vertex) Vertex {
-	if site == e.LeftSite {
-		return e.RightSite
-	} else if site == e.RightSite {
-		return e.LeftSite
+func (e *Edge) GetOtherCell(cell *Cell) *Cell {
+	if cell == e.LeftCell {
+		return e.RightCell
+	} else if cell == e.RightCell {
+		return e.LeftCell
 	}
-	return NO_VERTEX
+	return nil
 }
 
-func newEdge(LeftSite, RightSite Vertex) *Edge {
+func newEdge(LeftCell, RightCell *Cell) *Edge {
 	return &Edge{
-		LeftSite:  LeftSite,
-		RightSite: RightSite,
+		LeftCell:  LeftCell,
+		RightCell: RightCell,
 		Va:        NO_VERTEX,
 		Vb:        NO_VERTEX,
 	}
@@ -58,7 +58,7 @@ func newEdge(LeftSite, RightSite Vertex) *Edge {
 
 // Halfedge (directed edge)
 type Halfedge struct {
-	Site  Vertex
+	Cell  *Cell
 	Edge  *Edge
 	Angle float64
 }
@@ -74,9 +74,9 @@ type HalfedgesByAngle struct{ Halfedges }
 
 func (s HalfedgesByAngle) Less(i, j int) bool { return s.Halfedges[i].Angle > s.Halfedges[j].Angle }
 
-func newHalfedge(edge *Edge, LeftSite, RightSite Vertex) *Halfedge {
+func newHalfedge(edge *Edge, LeftCell, RightCell *Cell) *Halfedge {
 	ret := &Halfedge{
-		Site: LeftSite,
+		Cell: LeftCell,
 		Edge: edge,
 	}
 
@@ -87,14 +87,14 @@ func newHalfedge(edge *Edge, LeftSite, RightSite Vertex) *Halfedge {
 	// However, border edges have no 'site to the right': thus we
 	// use the angle of line perpendicular to the halfsegment (the
 	// edge should have both end points defined in such case.)
-	if RightSite != NO_VERTEX {
-		ret.Angle = math.Atan2(RightSite.Y-LeftSite.Y, RightSite.X-LeftSite.X)
+	if RightCell != nil {
+		ret.Angle = math.Atan2(RightCell.Site.Y-LeftCell.Site.Y, RightCell.Site.X-LeftCell.Site.X)
 	} else {
 		va := edge.Va
 		vb := edge.Vb
 		// rhill 2011-05-31: used to call GetStartpoint()/GetEndpoint(),
 		// but for performance purpose, these are expanded in place here.
-		if edge.LeftSite == LeftSite {
+		if edge.LeftCell == LeftCell {
 			ret.Angle = math.Atan2(vb.X-va.X, va.Y-vb.Y)
 		} else {
 			ret.Angle = math.Atan2(va.X-vb.X, vb.Y-va.Y)
@@ -104,7 +104,7 @@ func newHalfedge(edge *Edge, LeftSite, RightSite Vertex) *Halfedge {
 }
 
 func (h *Halfedge) GetStartpoint() Vertex {
-	if h.Edge.LeftSite == h.Site {
+	if h.Edge.LeftCell == h.Cell {
 		return h.Edge.Va
 	}
 	return h.Edge.Vb
@@ -112,7 +112,7 @@ func (h *Halfedge) GetStartpoint() Vertex {
 }
 
 func (h *Halfedge) GetEndpoint() Vertex {
-	if h.Edge.LeftSite == h.Site {
+	if h.Edge.LeftCell == h.Cell {
 		return h.Edge.Vb
 	}
 	return h.Edge.Va

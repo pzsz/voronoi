@@ -22,7 +22,7 @@ type Voronoi struct {
 }
 
 type Diagram struct {
-	Sites map[Vertex] *Cell
+	Sites map[Vertex]*Cell
 	Cells []*Cell
 	Edges []*Edge
 }
@@ -35,27 +35,27 @@ func (s *Voronoi) getCell(site Vertex) *Cell {
 	return ret
 }
 
-func (s *Voronoi) createEdge(LeftSite, RightSite, va, vb Vertex) *Edge {
-	edge := newEdge(LeftSite, RightSite)
+func (s *Voronoi) createEdge(LeftCell, RightCell *Cell, va, vb Vertex) *Edge {
+	edge := newEdge(LeftCell, RightCell)
 	s.edges = append(s.edges, edge)
 	if va != NO_VERTEX {
-		s.setEdgeStartpoint(edge, LeftSite, RightSite, va)
+		s.setEdgeStartpoint(edge, LeftCell, RightCell, va)
 	}
 
 	if vb != NO_VERTEX {
-		s.setEdgeEndpoint(edge, LeftSite, RightSite, vb)
+		s.setEdgeEndpoint(edge, LeftCell, RightCell, vb)
 	}
 
-	lCell := s.getCell(LeftSite)
-	rCell := s.getCell(RightSite)
+	lCell := LeftCell
+	rCell := RightCell
 
-	lCell.Halfedges = append(lCell.Halfedges, newHalfedge(edge, LeftSite, RightSite))
-	rCell.Halfedges = append(rCell.Halfedges, newHalfedge(edge, RightSite, LeftSite))
+	lCell.Halfedges = append(lCell.Halfedges, newHalfedge(edge, LeftCell, RightCell))
+	rCell.Halfedges = append(rCell.Halfedges, newHalfedge(edge, RightCell, LeftCell))
 	return edge
 }
 
-func (s *Voronoi) createBorderEdge(LeftSite, va, vb Vertex) *Edge {
-	edge := newEdge(LeftSite, NO_VERTEX)
+func (s *Voronoi) createBorderEdge(LeftCell *Cell, va, vb Vertex) *Edge {
+	edge := newEdge(LeftCell, nil)
 	edge.Va = va
 	edge.Vb = vb
 
@@ -63,20 +63,20 @@ func (s *Voronoi) createBorderEdge(LeftSite, va, vb Vertex) *Edge {
 	return edge
 }
 
-func (s *Voronoi) setEdgeStartpoint(edge *Edge, LeftSite, RightSite, vertex Vertex) {
+func (s *Voronoi) setEdgeStartpoint(edge *Edge, LeftCell, RightCell *Cell, vertex Vertex) {
 	if edge.Va == NO_VERTEX && edge.Vb == NO_VERTEX {
 		edge.Va = vertex
-		edge.LeftSite = LeftSite
-		edge.RightSite = RightSite
-	} else if edge.LeftSite == RightSite {
+		edge.LeftCell = LeftCell
+		edge.RightCell = RightCell
+	} else if edge.LeftCell == RightCell {
 		edge.Vb = vertex
 	} else {
 		edge.Va = vertex
 	}
 }
 
-func (s *Voronoi) setEdgeEndpoint(edge *Edge, LeftSite, RightSite, vertex Vertex) {
-	s.setEdgeStartpoint(edge, RightSite, LeftSite, vertex)
+func (s *Voronoi) setEdgeEndpoint(edge *Edge, LeftCell, RightCell *Cell, vertex Vertex) {
+	s.setEdgeStartpoint(edge, RightCell, LeftCell, vertex)
 }
 
 type Beachsection struct {
@@ -226,7 +226,11 @@ func (s *Voronoi) removeBeachsection(beachsection *Beachsection) {
 	for iArc := 1; iArc < nArcs; iArc++ {
 		rArc = disappearingTransitions[iArc]
 		lArc = disappearingTransitions[iArc-1]
-		s.setEdgeStartpoint(rArc.edge, lArc.site, rArc.site, vertex)
+
+		lSite := s.getCell(lArc.site)
+		rSite := s.getCell(rArc.site)
+
+		s.setEdgeStartpoint(rArc.edge, lSite, rSite, vertex)
 	}
 
 	// create a new edge as we have now a new transition between
@@ -236,7 +240,10 @@ func (s *Voronoi) removeBeachsection(beachsection *Beachsection) {
 	// on the left)
 	lArc = disappearingTransitions[0]
 	rArc = disappearingTransitions[nArcs-1]
-	rArc.edge = s.createEdge(lArc.site, rArc.site, NO_VERTEX, vertex)
+	lSite := s.getCell(lArc.site)
+	rSite := s.getCell(rArc.site)
+
+	rArc.edge = s.createEdge(lSite, rSite, NO_VERTEX, vertex)
 
 	// create circle events if any for beach sections left in the beachline
 	// adjacent to collapsed sections
@@ -346,7 +353,9 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 
 		// since we have a new transition between two beach sections,
 		// a new edge is born
-		newArc.edge = s.createEdge(lArc.site, newArc.site, NO_VERTEX, NO_VERTEX)
+		lCell := s.getCell(lArc.site)
+		newCell := s.getCell(newArc.site)
+		newArc.edge = s.createEdge(lCell, newCell, NO_VERTEX, NO_VERTEX)
 		rArc.edge = newArc.edge
 
 		// check whether the left and right beach sections are collapsing
@@ -367,7 +376,9 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 	//   no collapsing beach section as a result
 	//   new beach section become right-most node of the RB-tree
 	if lArc != nil && rArc == nil {
-		newArc.edge = s.createEdge(lArc.site, newArc.site, NO_VERTEX, NO_VERTEX)
+		lCell := s.getCell(lArc.site)
+		newCell := s.getCell(newArc.site)
+		newArc.edge = s.createEdge(lCell, newCell, NO_VERTEX, NO_VERTEX)
 		return
 	}
 
@@ -415,12 +426,16 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 		hc := cx*cx + cy*cy
 		vertex := Vertex{(cy*hb-by*hc)/d + ax, (bx*hc-cx*hb)/d + ay}
 
+		lCell := s.getCell(LeftSite)
+		cell := s.getCell(site)
+		rCell := s.getCell(RightSite)
+
 		// one transition disappear
-		s.setEdgeStartpoint(rArc.edge, LeftSite, RightSite, vertex)
+		s.setEdgeStartpoint(rArc.edge, lCell, rCell, vertex)
 
 		// two new transitions appear at the new vertex location
-		newArc.edge = s.createEdge(LeftSite, site, NO_VERTEX, vertex)
-		rArc.edge = s.createEdge(site, RightSite, NO_VERTEX, vertex)
+		newArc.edge = s.createEdge(lCell, cell, NO_VERTEX, vertex)
+		rArc.edge = s.createEdge(cell, rCell, NO_VERTEX, vertex)
 
 		// check whether the left and right beach sections are collapsing
 		// and if so create circle events, to handle the point of collapse.
@@ -581,8 +596,8 @@ func connectEdge(edge *Edge, bbox BBox) bool {
 	xr := bbox.Xr
 	yt := bbox.Yt
 	yb := bbox.Yb
-	LeftSite := edge.LeftSite
-	RightSite := edge.RightSite
+	LeftSite := edge.LeftCell.Site
+	RightSite := edge.RightCell.Site
 	lx := LeftSite.X
 	ly := LeftSite.Y
 	rx := RightSite.X
@@ -899,13 +914,13 @@ func (s *Voronoi) closeCells(bbox BBox) {
 				}
 
 				// Create new border edge. Slide it into iLeft+1 position
-				edge := s.createBorderEdge(cell.Site, va, vb)
+				edge := s.createBorderEdge(cell, va, vb)
 				cell.Halfedges = append(cell.Halfedges, nil)
 				halfedges = cell.Halfedges
 				nHalfedges = len(halfedges)
 
 				copy(halfedges[iLeft+2:len(halfedges)], halfedges[iLeft+1:len(halfedges)-1])
-				halfedges[iLeft+1] = newHalfedge(edge, cell.Site, NO_VERTEX)
+				halfedges[iLeft+1] = newHalfedge(edge, cell, nil)
 
 			}
 			iLeft++
@@ -988,7 +1003,7 @@ func ComputeDiagram(sites []Vertex, bbox BBox, closeCells bool) *Diagram {
 	}
 
 	result := &Diagram{
-		Sites: make(map[Vertex] *Cell),
+		Sites: make(map[Vertex]*Cell),
 		Edges: s.edges,
 		Cells: s.cells,
 	}
