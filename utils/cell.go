@@ -53,3 +53,12 @@ func InsideCell(cell *voronoi.Cell, v voronoi.Vertex) bool {
 	}
 	return true
 }
+
+func EdgeIndex(cell *voronoi.Cell, edge *voronoi.Edge) int {
+	for i, halfedge := range cell.Halfedges {
+		if halfedge.Edge == edge {
+			return i
+		}
+	}	
+	return -1
+}

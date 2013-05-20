@@ -38,6 +38,15 @@ type Edge struct {
 	Vb        Vertex
 }
 
+func (e *Edge) GetOtherSite(site Vertex) Vertex {
+	if site == e.LeftSite {
+		return e.RightSite
+	} else if site == e.RightSite {
+		return e.LeftSite
+	}
+	return NO_VERTEX
+}
+
 func newEdge(LeftSite, RightSite Vertex) *Edge {
 	return &Edge{
 		LeftSite:  LeftSite,
