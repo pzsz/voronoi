@@ -30,12 +30,21 @@ type VerticesByY struct{ Vertices }
 
 func (s VerticesByY) Less(i, j int) bool { return s.Vertices[i].Y < s.Vertices[j].Y }
 
+type EdgeVertex struct {
+	Vertex
+	Edges []*Edge
+}
+
 // Edge structure
 type Edge struct {
-	LeftCell  *Cell
+	// Cell on the left
+	LeftCell *Cell
+	// Cell on the right
 	RightCell *Cell
-	Va        Vertex
-	Vb        Vertex
+	// Start Vertex
+	Va EdgeVertex
+	// End Vertex
+	Vb EdgeVertex
 }
 
 func (e *Edge) GetOtherCell(cell *Cell) *Cell {
@@ -47,12 +56,21 @@ func (e *Edge) GetOtherCell(cell *Cell) *Cell {
 	return nil
 }
 
+func (e *Edge) GetOtherEdgeVertex(v Vertex) EdgeVertex {
+	if v == e.Va.Vertex {
+		return e.Vb
+	} else if v == e.Vb.Vertex {
+		return e.Va
+	}
+	return EdgeVertex{NO_VERTEX, nil}
+}
+
 func newEdge(LeftCell, RightCell *Cell) *Edge {
 	return &Edge{
 		LeftCell:  LeftCell,
 		RightCell: RightCell,
-		Va:        NO_VERTEX,
-		Vb:        NO_VERTEX,
+		Va:        EdgeVertex{NO_VERTEX, nil},
+		Vb:        EdgeVertex{NO_VERTEX, nil},
 	}
 }
 
@@ -105,15 +123,15 @@ func newHalfedge(edge *Edge, LeftCell, RightCell *Cell) *Halfedge {
 
 func (h *Halfedge) GetStartpoint() Vertex {
 	if h.Edge.LeftCell == h.Cell {
-		return h.Edge.Va
+		return h.Edge.Va.Vertex
 	}
-	return h.Edge.Vb
+	return h.Edge.Vb.Vertex
 
 }
 
 func (h *Halfedge) GetEndpoint() Vertex {
 	if h.Edge.LeftCell == h.Cell {
-		return h.Edge.Vb
+		return h.Edge.Vb.Vertex
 	}
-	return h.Edge.Va
+	return h.Edge.Va.Vertex
 }

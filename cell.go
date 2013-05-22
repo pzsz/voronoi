@@ -31,7 +31,7 @@ func (t *Cell) prepare() int {
 	for ; iHalfedge >= 0; iHalfedge-- {
 		edge := halfedges[iHalfedge].Edge
 
-		if edge.Vb == NO_VERTEX || edge.Va == NO_VERTEX {
+		if edge.Vb.Vertex == NO_VERTEX || edge.Va.Vertex == NO_VERTEX {
 			halfedges[iHalfedge] = halfedges[len(halfedges)-1]
 			halfedges = halfedges[:len(halfedges)-1]
 		}

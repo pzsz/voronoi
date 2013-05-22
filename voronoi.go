@@ -18,13 +18,13 @@ type Voronoi struct {
 
 	beachline        rbTree
 	circleEvents     rbTree
-	firstCircleEvent *CircleEvent
+	firstCircleEvent *circleEvent
 }
 
 type Diagram struct {
-	Sites map[Vertex]*Cell
 	Cells []*Cell
 	Edges []*Edge
+	//	EdgesVertices map[Vertex]EdgeVertex
 }
 
 func (s *Voronoi) getCell(site Vertex) *Cell {
@@ -56,22 +56,22 @@ func (s *Voronoi) createEdge(LeftCell, RightCell *Cell, va, vb Vertex) *Edge {
 
 func (s *Voronoi) createBorderEdge(LeftCell *Cell, va, vb Vertex) *Edge {
 	edge := newEdge(LeftCell, nil)
-	edge.Va = va
-	edge.Vb = vb
+	edge.Va.Vertex = va
+	edge.Vb.Vertex = vb
 
 	s.edges = append(s.edges, edge)
 	return edge
 }
 
 func (s *Voronoi) setEdgeStartpoint(edge *Edge, LeftCell, RightCell *Cell, vertex Vertex) {
-	if edge.Va == NO_VERTEX && edge.Vb == NO_VERTEX {
-		edge.Va = vertex
+	if edge.Va.Vertex == NO_VERTEX && edge.Vb.Vertex == NO_VERTEX {
+		edge.Va.Vertex = vertex
 		edge.LeftCell = LeftCell
 		edge.RightCell = RightCell
 	} else if edge.LeftCell == RightCell {
-		edge.Vb = vertex
+		edge.Vb.Vertex = vertex
 	} else {
-		edge.Va = vertex
+		edge.Va.Vertex = vertex
 	}
 }
 
@@ -82,7 +82,7 @@ func (s *Voronoi) setEdgeEndpoint(edge *Edge, LeftCell, RightCell *Cell, vertex 
 type Beachsection struct {
 	node        *rbNode
 	site        Vertex
-	circleEvent *CircleEvent
+	circleEvent *circleEvent
 	edge        *Edge
 }
 
@@ -445,7 +445,7 @@ func (s *Voronoi) addBeachsection(site Vertex) {
 	}
 }
 
-type CircleEvent struct {
+type circleEvent struct {
 	node    *rbNode
 	site    Vertex
 	arc     *Beachsection
@@ -454,11 +454,11 @@ type CircleEvent struct {
 	ycenter float64
 }
 
-func (s *CircleEvent) bindToNode(node *rbNode) {
+func (s *circleEvent) bindToNode(node *rbNode) {
 	s.node = node
 }
 
-func (s *CircleEvent) getNode() *rbNode {
+func (s *circleEvent) getNode() *rbNode {
 	return s.node
 }
 
@@ -516,7 +516,7 @@ func (s *Voronoi) attachCircleEvent(arc *Beachsection) {
 	// to waste CPU cycles by checking
 
 	// recycle circle event object if possible	
-	circleEvent := &CircleEvent{
+	circleEventInst := &circleEvent{
 		arc:     arc,
 		site:    cSite,
 		x:       x + bx,
@@ -524,15 +524,15 @@ func (s *Voronoi) attachCircleEvent(arc *Beachsection) {
 		ycenter: ycenter,
 	}
 
-	arc.circleEvent = circleEvent
+	arc.circleEvent = circleEventInst
 
 	// find insertion point in RB-tree: circle events are ordered from
 	// smallest to largest
 	var predecessor *rbNode = nil
 	node := s.circleEvents.root
 	for node != nil {
-		nodeValue := node.value.(*CircleEvent)
-		if circleEvent.y < nodeValue.y || (circleEvent.y == nodeValue.y && circleEvent.x <= nodeValue.x) {
+		nodeValue := node.value.(*circleEvent)
+		if circleEventInst.y < nodeValue.y || (circleEventInst.y == nodeValue.y && circleEventInst.x <= nodeValue.x) {
 			if node.left != nil {
 				node = node.left
 			} else {
@@ -548,9 +548,9 @@ func (s *Voronoi) attachCircleEvent(arc *Beachsection) {
 			}
 		}
 	}
-	s.circleEvents.insertSuccessor(predecessor, circleEvent)
+	s.circleEvents.insertSuccessor(predecessor, circleEventInst)
 	if predecessor == nil {
-		s.firstCircleEvent = circleEvent
+		s.firstCircleEvent = circleEventInst
 	}
 }
 
@@ -559,7 +559,7 @@ func (s *Voronoi) detachCircleEvent(arc *Beachsection) {
 	if circle != nil {
 		if circle.node.previous == nil {
 			if circle.node.next != nil {
-				s.firstCircleEvent = circle.node.next.value.(*CircleEvent)
+				s.firstCircleEvent = circle.node.next.value.(*circleEvent)
 			} else {
 				s.firstCircleEvent = nil
 			}
@@ -569,11 +569,12 @@ func (s *Voronoi) detachCircleEvent(arc *Beachsection) {
 	}
 }
 
-// Bounding box
+// Bounding Box
 type BBox struct {
 	Xl, Xr, Yt, Yb float64
 }
 
+// Create new Bounding Box
 func NewBBox(xl, xr, yt, yb float64) BBox {
 	return BBox{xl, xr, yt, yb}
 }
@@ -585,13 +586,13 @@ func NewBBox(xl, xr, yt, yb float64) BBox {
 //   true: the dangling endpoint could be connected
 func connectEdge(edge *Edge, bbox BBox) bool {
 	// skip if end point already connected
-	vb := edge.Vb
+	vb := edge.Vb.Vertex
 	if vb != NO_VERTEX {
 		return true
 	}
 
 	// make local copy for performance purpose
-	va := edge.Va
+	va := edge.Va.Vertex
 	xl := bbox.Xl
 	xr := bbox.Xr
 	yt := bbox.Yt
@@ -689,8 +690,8 @@ func connectEdge(edge *Edge, bbox BBox) bool {
 			vb = Vertex{xl, fm*xl + fb}
 		}
 	}
-	edge.Va = va
-	edge.Vb = vb
+	edge.Va.Vertex = va
+	edge.Vb.Vertex = vb
 	return true
 }
 
@@ -794,7 +795,7 @@ func clipEdge(edge *Edge, bbox BBox) bool {
 	// than modifying the existing one, since the existing
 	// one is likely shared with at least another edge
 	if t0 > 0 {
-		edge.Va = Vertex{ax + t0*dx, ay + t0*dy}
+		edge.Va.Vertex = Vertex{ax + t0*dx, ay + t0*dy}
 	}
 
 	// if t1 < 1, vb needs to change
@@ -802,7 +803,7 @@ func clipEdge(edge *Edge, bbox BBox) bool {
 	// than modifying the existing one, since the existing
 	// one is likely shared with at least another edge
 	if t1 < 1 {
-		edge.Vb = Vertex{ax + t1*dx, ay + t1*dy}
+		edge.Vb.Vertex = Vertex{ax + t1*dx, ay + t1*dy}
 	}
 
 	return true
@@ -833,8 +834,8 @@ func (s *Voronoi) clipEdges(bbox BBox) {
 		//   it is wholly outside the bounding box
 		//   it is actually a point rather than a line
 		if !connectEdge(edge, bbox) || !clipEdge(edge, bbox) || (abs_fn(edge.Va.X-edge.Vb.X) < 1e-9 && abs_fn(edge.Va.Y-edge.Vb.Y) < 1e-9) {
-			edge.Va = NO_VERTEX
-			edge.Vb = NO_VERTEX
+			edge.Va.Vertex = NO_VERTEX
+			edge.Vb.Vertex = NO_VERTEX
 			s.edges[i] = s.edges[len(s.edges)-1]
 			s.edges = s.edges[0 : len(s.edges)-1]
 		}
@@ -928,6 +929,28 @@ func (s *Voronoi) closeCells(bbox BBox) {
 	}
 }
 
+func (s *Voronoi) gatherVertexEdges() {
+	vertexEdgeMap := make(map[Vertex][]*Edge)
+
+	for _, edge := range s.edges {
+		vertexEdgeMap[edge.Va.Vertex] = append(
+			vertexEdgeMap[edge.Va.Vertex], edge)
+		vertexEdgeMap[edge.Vb.Vertex] = append(
+			vertexEdgeMap[edge.Vb.Vertex], edge)
+	}
+
+	for vertex, edgeSlice := range vertexEdgeMap {
+		for _, edge := range edgeSlice {
+			if vertex == edge.Va.Vertex {
+				edge.Va.Edges = edgeSlice
+			}
+			if vertex == edge.Vb.Vertex {
+				edge.Vb.Edges = edgeSlice
+			}
+		}
+	}
+}
+
 // Compute voronoi diagram. If closeCells == true, edges from bounding box will be 
 // included in diagram.
 func ComputeDiagram(sites []Vertex, bbox BBox, closeCells bool) *Diagram {
@@ -953,7 +976,7 @@ func ComputeDiagram(sites []Vertex, bbox BBox, closeCells bool) *Diagram {
 	// process queue
 	xsitex := math.SmallestNonzeroFloat64
 	xsitey := math.SmallestNonzeroFloat64
-	var circle *CircleEvent
+	var circle *circleEvent
 
 	// main loop
 	for {
@@ -1002,13 +1025,11 @@ func ComputeDiagram(sites []Vertex, bbox BBox, closeCells bool) *Diagram {
 		}
 	}
 
+	s.gatherVertexEdges()
+
 	result := &Diagram{
-		Sites: make(map[Vertex]*Cell),
 		Edges: s.edges,
 		Cells: s.cells,
-	}
-	for _, cell := range s.cells {
-		result.Sites[cell.Site] = cell
 	}
 	return result
 }
