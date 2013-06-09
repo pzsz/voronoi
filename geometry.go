@@ -88,9 +88,9 @@ func (s Halfedges) Len() int      { return len(s) }
 func (s Halfedges) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 // For sorting by angle
-type HalfedgesByAngle struct{ Halfedges }
+type halfedgesByAngle struct{ Halfedges }
 
-func (s HalfedgesByAngle) Less(i, j int) bool { return s.Halfedges[i].Angle > s.Halfedges[j].Angle }
+func (s halfedgesByAngle) Less(i, j int) bool { return s.Halfedges[i].Angle > s.Halfedges[j].Angle }
 
 func newHalfedge(edge *Edge, LeftCell, RightCell *Cell) *Halfedge {
 	ret := &Halfedge{
