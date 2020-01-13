@@ -66,3 +66,31 @@ func Benchmark1000(b *testing.B) {
 	b.StartTimer()
 	ComputeDiagram(sites, NewBBox(0, 100, 0, 100), true)
 }
+
+func TestHorizontal(t *testing.T) {
+	sites := make([]Vertex, 0)
+	for i := 0; i < 100; i++ {
+		sites = append(sites, Vertex{float64(i), 1})
+	}
+	verifyDiagram(ComputeDiagram(sites, NewBBox(0, 100, 0, 100), true),
+		301, 100, 4, t)
+}
+
+func TestVertical(t *testing.T) {
+	sites := make([]Vertex, 0)
+	for i := 0; i < 100; i++ {
+		sites = append(sites, Vertex{1, float64(i)})
+	}
+	verifyDiagram(ComputeDiagram(sites, NewBBox(0, 100, 0, 100), true),
+		301, 100, 4, t)
+}
+
+func TestSquare(t *testing.T) {
+	sites := make([]Vertex, 0)
+	for i := 0; i < 10; i ++ {
+		for j := 0; j < 10; j ++ {
+			sites = append(sites, Vertex{float64(i), float64(j)})
+		}
+	}
+	ComputeDiagram(sites, NewBBox(0, 10, 0, 10), true)
+}
